@@ -10,7 +10,7 @@
        2. STEP 6 is appended at the very end. It takes the same
           wf_21_07_output this pipeline has always produced and asks one
           question: among yesterday's applications where
-            aa_income > 40000  OR  bureau_cibil_3_score > 760  OR  user_gross_monthly_salary > 45000
+            aa_income > 40000  AND  bureau_cibil_3_score > 760  AND  user_gross_monthly_salary > 45000
           how many were NOT tagged 'Approved' in ultra_power_waterfall_scrupg,
           and — using the exact same failure-cascade logic as that column —
           what is the first rule/variable that stopped each of them.
@@ -5934,7 +5934,7 @@ LEFT JOIN kissht_reports.temp_tables.tmp_c2_eqfx eq
    STEP 6 — daily monitor: high-value customers ultra_power_waterfall_scrupg missed
    ═══════════════════════════════════════════════════════════════
    WHAT: every yesterday application where
-           aa_income > 40000  OR  bureau_cibil_3_score > 760  OR  user_gross_monthly_salary > 45000
+           aa_income > 40000  AND  bureau_cibil_3_score > 760  AND  user_gross_monthly_salary > 45000
          but ultra_power_waterfall_scrupg did NOT say 'Approved'.
    WHY : these are customers who look clearly credit-worthy on income/bureau
          grounds, so a high miss rate here is a signal to go check whether the
@@ -5988,8 +5988,8 @@ SELECT
 FROM kissht_reports.temp_tables.wf_21_07_output w
 WHERE w.date = $start_date
   AND (   w.output_aa_income > 40000
-       OR w.rv_bureau_cibil_3_score > 760
-       OR w.user_gross_monthly_salary > 45000 )
+      AND w.rv_bureau_cibil_3_score > 760
+      AND w.user_gross_monthly_salary > 45000 )
   AND NVL(w.ultra_power_waterfall_scrupg, 'FAIL_other') <> 'Approved';
 
 /* ── Slack-ready summary: counts by miss reason for yesterday ──
