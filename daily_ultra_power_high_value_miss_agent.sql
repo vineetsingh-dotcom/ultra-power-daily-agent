@@ -5084,6 +5084,93 @@ SELECT
     END AS ultra_power_waterfall_scrupg,
 
     /* ══════════════════════════════════════════════════════════
+       ultra_power_scrupg_fail_count / _fail_reasons -- same dt-20
+       ultra_power_scr_upg benchmark and same 28 checks as
+       ultra_power_waterfall_scrupg above, but instead of stopping at the
+       FIRST failing check (as the cascade does), this counts and names
+       EVERY check that failed. Lets you ask "how many customers failed
+       on exactly 1 / 2 / 3 reasons" instead of only "what was the first
+       reason". NULL for customers never evaluated against this benchmark
+       (Equifax / Pre_Bureau / POST_BUREAU / 5_DENIED_2 -- they never
+       reached the FLEXI_OFFER/SEGMENT/etc. stage).
+    ══════════════════════════════════════════════════════════ */
+    CASE
+        WHEN UPPER(NVL(a.module, '')) IN ('FLEXI_OFFER','SEGMENT','FLEXI','OFFER') AND LOWER(NVL(a.rejection_reason, '')) NOT LIKE '%equifax%'
+          THEN
+            (CASE WHEN a.seg_status_active = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_age_24_59 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_multi_cabal_5 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_emi_bounce_1 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_legal_notice_0 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_digi_overdues_1 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_loan_overdues_sum_2000 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_months_0dpd_gt1 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_months_90dpd_ge12 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_multi_cabal90d_0 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_suit_filed_0 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_writeoff_12m_false = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_loan_max_dpd_4 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_uan_hit_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_last_emi_dpd_1 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_shield_rej_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_shield_android_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_blocklist_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_prev_tenure_ge1 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_live_overdue_2000 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_important_checks_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) IS NULL
+                    OR COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) <= 0
+                    OR COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) > 0.08767910
+                  THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_risk_check_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_tenure_ge3 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_conc_adj_emi_pass = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_idccr_700 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_loc_tenure_ge24 = 0 THEN 1 ELSE 0 END) +
+            (CASE WHEN a.seg_combined_onbook_lt2 = 0 THEN 1 ELSE 0 END)
+        ELSE NULL
+    END AS ultra_power_scrupg_fail_count,
+
+    CASE
+        WHEN UPPER(NVL(a.module, '')) IN ('FLEXI_OFFER','SEGMENT','FLEXI','OFFER') AND LOWER(NVL(a.rejection_reason, '')) NOT LIKE '%equifax%'
+          THEN ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(
+            CASE WHEN a.seg_status_active = 0 THEN 'IOP_10_status_active' END,
+            CASE WHEN a.seg_age_24_59 = 0 THEN 'RISK_02_age_24_59' END,
+            CASE WHEN a.seg_multi_cabal_5 = 0 THEN 'RISK_14_multi_cabal_5' END,
+            CASE WHEN a.seg_emi_bounce_1 = 0 THEN 'RISK_22_emi_bounce_1' END,
+            CASE WHEN a.seg_legal_notice_0 = 0 THEN 'RISK_20_legal_notice' END,
+            CASE WHEN a.seg_digi_overdues_1 = 0 THEN 'RISK_17_digi_overdues_1' END,
+            CASE WHEN a.seg_loan_overdues_sum_2000 = 0 THEN 'RISK_19_loan_overdues_sum_2000' END,
+            CASE WHEN a.seg_months_0dpd_gt1 = 0 THEN 'RISK_09_months_0dpd_gt1' END,
+            CASE WHEN a.seg_months_90dpd_ge12 = 0 THEN 'RISK_08_months_90dpd_ge12' END,
+            CASE WHEN a.seg_multi_cabal90d_0 = 0 THEN 'RISK_15_multi_cabal90d_0' END,
+            CASE WHEN a.seg_suit_filed_0 = 0 THEN 'IMP_06_suit_filed' END,
+            CASE WHEN a.seg_writeoff_12m_false = 0 THEN 'IMP_05_writeoff_12m' END,
+            CASE WHEN a.seg_loan_max_dpd_4 = 0 THEN 'RISK_05_loan_max_dpd_4' END,
+            CASE WHEN a.seg_uan_hit_pass = 0 THEN 'IMP_07_uan_hit' END,
+            CASE WHEN a.seg_last_emi_dpd_1 = 0 THEN 'RISK_06_last_emi_dpd_1' END,
+            CASE WHEN a.seg_shield_rej_pass = 0 THEN 'IMP_08_shield_rejection' END,
+            CASE WHEN a.seg_shield_android_pass = 0 THEN 'IMP_09_shield_android' END,
+            CASE WHEN a.seg_blocklist_pass = 0 THEN 'IMP_02_blocklist' END,
+            CASE WHEN a.seg_prev_tenure_ge1 = 0 THEN 'IOP_01_prev_tenure' END,
+            CASE WHEN a.seg_live_overdue_2000 = 0 THEN 'RISK_10_live_overdue_2000' END,
+            CASE WHEN a.seg_important_checks_pass = 0 THEN 'IMP_03_important_checks' END,
+            CASE WHEN COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) IS NULL
+                    OR COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) <= 0
+                    OR COALESCE(a.rv_sagemaker_repeat_v43, v43_src.v43_sagemaker_score, TRY_CAST(auto_sc.auto_model_score AS FLOAT)) > 0.08767910
+                  THEN 'RISK_23_v43_score' END,
+            CASE WHEN a.seg_risk_check_pass = 0 THEN 'RISK_03_risk_check' END,
+            CASE WHEN a.seg_tenure_ge3 = 0 THEN 'IOP_08_tenure_ge3' END,
+            CASE WHEN a.seg_conc_adj_emi_pass = 0 THEN 'IOP_04_conc_adj_emi_cap' END,
+            CASE WHEN a.seg_idccr_700 = 0 THEN 'IOP_05_idccr_700' END,
+            CASE WHEN a.seg_loc_tenure_ge24 = 0 THEN 'IOP_13_loc_tenure_ge24' END,
+            CASE WHEN a.seg_combined_onbook_lt2 = 0 THEN 'IMP_11_combined_onbook_lt2' END,
+            ), ' | ')
+        ELSE NULL
+    END AS ultra_power_scrupg_fail_reasons,
+
+
+    /* ══════════════════════════════════════════════════════════
        power_waterfall -- 5 segments, dt 24/30/31/32/33
 
        Approved  = the customer satisfies ANY ONE of these 5 rules.
@@ -5964,6 +6051,8 @@ CREATE TABLE IF NOT EXISTS kissht_reports.temp_tables.daily_hv_ultra_power_miss_
     user_gross_monthly_salary   FLOAT,
     high_value_reason           VARCHAR,   /* which of the 3 thresholds this customer tripped */
     ultra_power_waterfall_scrupg VARCHAR,  /* 'Approved' never lands here by definition of this filter */
+    scrupg_fail_count           NUMBER,    /* how many of the 28 dt-20 benchmark checks this customer failed; NULL if never evaluated against it */
+    scrupg_fail_reasons         VARCHAR,   /* every failing check, ' | '-joined, in DT column order */
     rejection_reason            VARCHAR,
     logged_at                   TIMESTAMP_NTZ
 );
@@ -5988,6 +6077,8 @@ SELECT
         CASE WHEN w.user_gross_monthly_salary > 45000        THEN 'salary>45k'      END
     ), '+')                                     AS high_value_reason,
     w.ultra_power_waterfall_scrupg,
+    w.ultra_power_scrupg_fail_count             AS scrupg_fail_count,
+    w.ultra_power_scrupg_fail_reasons           AS scrupg_fail_reasons,
     w.rejection_reason,
     CURRENT_TIMESTAMP()                         AS logged_at
 FROM kissht_reports.temp_tables.wf_21_07_output w
@@ -5996,6 +6087,37 @@ WHERE w.date = $start_date
        OR w.rv_bureau_cibil_3_score > 760
        OR w.user_gross_monthly_salary > 45000 )
   AND NVL(w.ultra_power_waterfall_scrupg, 'FAIL_other') <> 'Approved';
+
+/* ══════════════════════════════════════════════════════════
+   STEP 7 — how many REASONS, not just which one: fail-count breakdown
+   ══════════════════════════════════════════════════════════
+   WHAT: ultra_power_waterfall_scrupg (and scrupg_fail_reasons above) name
+         only the FIRST of the 28 benchmark checks a customer failed.
+         This view groups high-value misses by scrupg_fail_count (how many
+         of the 28 they failed, not just the first) and, within each count,
+         by the EXACT combination of failing checks -- so you can see e.g.
+         "612 customers failed on exactly 1 reason: RISK_22_emi_bounce_1"
+         vs "58 customers failed on exactly 2 reasons: RISK_22_emi_bounce_1
+         | RISK_02_age_24_59" as two distinct rows, each with the reasons
+         and the customers' own median income/cibil/salary.
+   NOTE: customers with scrupg_fail_count IS NULL (Equifax / Pre_Bureau /
+         POST_BUREAU / 5_DENIED_2 -- never reached this benchmark) are
+         excluded here since "how many reasons" isn't meaningful for them;
+         they still show up under their own bucket labels in the miss-
+         reason summary below. */
+CREATE OR REPLACE VIEW kissht_reports.temp_tables.daily_hv_ultra_power_failcount_view AS
+SELECT
+    run_date,
+    scrupg_fail_count,
+    scrupg_fail_reasons,
+    COUNT(*)                                    AS customers,
+    ROUND(MEDIAN(output_aa_income), 0)          AS median_aa_income,
+    ROUND(MEDIAN(bureau_cibil_3_score), 0)      AS median_cibil_score,
+    ROUND(MEDIAN(user_gross_monthly_salary), 0) AS median_salary
+FROM kissht_reports.temp_tables.daily_hv_ultra_power_miss_log
+WHERE scrupg_fail_count IS NOT NULL
+GROUP BY run_date, scrupg_fail_count, scrupg_fail_reasons
+ORDER BY run_date DESC, scrupg_fail_count ASC, customers DESC;
 
 /* ── Slack-ready summary: counts by miss reason for yesterday ──
    This is the result set the daily agent should post. */
