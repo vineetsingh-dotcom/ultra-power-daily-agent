@@ -5164,7 +5164,7 @@ SELECT
             CASE WHEN a.seg_conc_adj_emi_pass = 0 THEN 'IOP_04_conc_adj_emi_cap' END,
             CASE WHEN a.seg_idccr_700 = 0 THEN 'IOP_05_idccr_700' END,
             CASE WHEN a.seg_loc_tenure_ge24 = 0 THEN 'IOP_13_loc_tenure_ge24' END,
-            CASE WHEN a.seg_combined_onbook_lt2 = 0 THEN 'IMP_11_combined_onbook_lt2' END,
+            CASE WHEN a.seg_combined_onbook_lt2 = 0 THEN 'IMP_11_combined_onbook_lt2' END
             ), ' | ')
         ELSE NULL
     END AS ultra_power_scrupg_fail_reasons,
