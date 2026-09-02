@@ -306,7 +306,12 @@ SELECT
     MAX(CASE WHEN s.name = 'finbox_variables' THEN s.OUTPUT__IDCCR_FRESH_DEROG_REJECTION END) AS idccr_fresh_derog_rejection,
     MAX(CASE WHEN s.name = 'finbox_variables' THEN s.OUTPUT__IDCCR_REPEAT_DEROG_REJECTION END) AS idccr_repeat_derog_rejection,
     MAX(CASE WHEN s.name = 'finbox_variables' THEN s.OUTPUT__LAP_DEROGS_FLAG             END) AS lap_derogs_flag,
-    MAX(CASE WHEN s.name = 'finbox_variables' THEN s.OUTPUT__AA_INCOME                   END) AS aa_income
+    /* FIX 2026-09-02: aa_income was always NULL when read from 'finbox_variables' — that
+       record type never carries this field (0% populated, verified against 10 days of
+       source data). The actual value lives under 'offer_computation_variables' (100%
+       populated over the same window), which this query already reads for
+       profile_based_tenure below, so no new source table is needed. */
+    MAX(CASE WHEN s.name = 'offer_computation_variables' THEN s.OUTPUT__AA_INCOME         END) AS aa_income
 FROM RING_SOURCE.DOCUMENT_DB.FINBOX_DATA_MODEL_OUTPUT_SPLIT s
 WHERE s.name IN ('finbox_variables', 'new_finbox_variables', 'repeat_offer_variable', 'offer_computation_variables')
   AND DATE(s.created_at) >= $fat_start_date
