@@ -5998,9 +5998,9 @@ SELECT
     $start_date                                                  AS run_date,
     ultra_power_waterfall_scrupg                                 AS miss_reason,
     COUNT(*)                                                     AS customers_missed,
-    ROUND(AVG(output_aa_income), 0)                              AS avg_aa_income,
-    ROUND(AVG(bureau_cibil_3_score), 0)                          AS avg_cibil_score,
-    ROUND(AVG(user_gross_monthly_salary), 0)                     AS avg_salary
+    ROUND(MEDIAN(output_aa_income), 0)                           AS median_aa_income,
+    ROUND(MEDIAN(bureau_cibil_3_score), 0)                       AS median_cibil_score,
+    ROUND(MEDIAN(user_gross_monthly_salary), 0)                  AS median_salary
 FROM kissht_reports.temp_tables.daily_hv_ultra_power_miss_log
 WHERE run_date = $start_date
 GROUP BY ultra_power_waterfall_scrupg
