@@ -6057,6 +6057,11 @@ CREATE TABLE IF NOT EXISTS kissht_reports.temp_tables.daily_hv_ultra_power_miss_
     logged_at                   TIMESTAMP_NTZ
 );
 
+/* CREATE TABLE IF NOT EXISTS above is a no-op once the table already exists
+   from a prior run, so a schema change needs an explicit migration too. */
+ALTER TABLE kissht_reports.temp_tables.daily_hv_ultra_power_miss_log ADD COLUMN IF NOT EXISTS scrupg_fail_count NUMBER;
+ALTER TABLE kissht_reports.temp_tables.daily_hv_ultra_power_miss_log ADD COLUMN IF NOT EXISTS scrupg_fail_reasons VARCHAR;
+
 DELETE FROM kissht_reports.temp_tables.daily_hv_ultra_power_miss_log
 WHERE run_date = $start_date;
 
