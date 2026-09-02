@@ -6065,7 +6065,11 @@ ALTER TABLE kissht_reports.temp_tables.daily_hv_ultra_power_miss_log ADD COLUMN 
 DELETE FROM kissht_reports.temp_tables.daily_hv_ultra_power_miss_log
 WHERE run_date = $start_date;
 
-INSERT INTO kissht_reports.temp_tables.daily_hv_ultra_power_miss_log
+INSERT INTO kissht_reports.temp_tables.daily_hv_ultra_power_miss_log (
+    run_date, fb_transaction_id, user_reference_number, application_date, module, status,
+    output_aa_income, bureau_cibil_3_score, user_gross_monthly_salary, high_value_reason,
+    ultra_power_waterfall_scrupg, scrupg_fail_count, scrupg_fail_reasons, rejection_reason, logged_at
+)
 SELECT
     $start_date                                AS run_date,
     w.fb_transaction_id,
