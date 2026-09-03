@@ -16,3 +16,35 @@ reference) with two changes:
 
 Run the whole file daily against Snowflake. The final `SELECT` (the
 "Slack-ready summary") is what a daily routine should read and post.
+
+---
+
+# Daily BAJAJ / PREFR / PREFR_PL bounce trend agent
+
+`daily_bajaj_prefr_bounce_agent.sql` reports the **M1 (first EMI) T0 bounce
+rate** (no payment-date tolerance — see `bounce_context.md` in the main
+workspace for the bounce-window methodology) for the three channels
+`BAJAJ`, `PREFR`, `PREFR_PL`, as a **daily trend over the trailing 10
+completed EMI-due days** (today is excluded — its EMIs aren't due/matured
+yet).
+
+Pipeline:
+1. Rebuilds a base cohort of `FINAL_APPROVED` loans on the 3 channels
+   (`ring_source.bi.transactions`, last 60 days — wide enough that a loan's
+   M1 due date, ~30 days post-disbursal, can fall inside the 10-day window).
+2. Joins to `ring_source.bi.repayments` (`month = 1`) and flags each loan
+   `paid_t0 = 1` (paid on/before its scheduled due date) or `0` (bounced —
+   unpaid or paid late), keeping only loans whose EMI due date falls in the
+   trailing 10-day window.
+3. Logs loan-level detail into the permanent table
+   `kissht_reports.temp_tables.daily_bajaj_prefr_bounce_log`, keyed by
+   `emi_due_date` (safe to re-run — the trailing window's rows are deleted
+   and re-inserted, so re-running the same day doesn't duplicate).
+4. Final summary `SELECT`: one row per `(emi_due_date, channel)` — columns
+   `emi_due_date, channel, total_emis_due, paid_on_time, bounced_count,
+   bounce_rate_pct` — ordered by `emi_due_date DESC, channel`. This is what
+   a daily routine should read and post (e.g. as a small trend table per
+   channel across the 10 days).
+
+Run the whole file daily against Snowflake, same pattern as the ultra_power
+agent above.
