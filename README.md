@@ -125,13 +125,40 @@ Pipeline:
    `'matured'` otherwise; `bounce_rate_pct` is `NULL` when `not_yet_due`) —
    ordered by `emi_due_date DESC, channel`.
 
-**Slack format**: post one markdown table per channel — columns
-`Scheduled Date | Paid | Bounced | Total Due | Bounce Rate` — most recent
-matured day in **bold** with a ✅ on its bounce rate, and the trailing
-"not yet due" row's Bounce Rate cell literal text `not yet due` instead of
-a number. If a channel has no rows in the window (e.g. PREFR_PL sometimes
-has none — see `bounce_context.md`), state that explicitly instead of
-omitting the channel.
+**Slack format**: post one table per channel — columns `DATE | PAID |
+BOUNCED | TOTAL | RATE` — most recent matured day marked `<-- latest`, and
+the trailing "not yet due" row's rate cell reading literally `not yet due`
+instead of a number. If a channel has no rows in the window (e.g. PREFR_PL
+sometimes has none — see `bounce_context.md`), state that explicitly
+instead of omitting the channel.
 
-Run the whole file daily against Snowflake, same pattern as the ultra_power
-agent above.
+## Files (bounce agent)
+
+| File | Purpose |
+|---|---|
+| `daily_bajaj_prefr_bounce_agent.sql` | The pipeline above. This is the file that actually runs. |
+| `run_bounce_daily_agent.py` | **Not committed to this repo** (gitignored — see Secrets). Runs the SQL against Snowflake and posts the per-channel trend table to Slack. |
+| `run_bounce_report.bat` | Double-click to trigger `run_bounce_daily_agent.py` manually. |
+| Desktop shortcut "Run Bounce Report" | Same as the batch file, one click from the Desktop. |
+
+## Running it (bounce agent)
+
+**Manual (today):** double-click `run_bounce_report.bat` or the "Run Bounce
+Report" desktop shortcut. A console window shows progress; a browser tab
+may briefly open for Snowflake SSO (usually auto-completes from a cached
+session — click through it if it doesn't). Posts one message to
+`#bajaj_prefr_bounce` with a table per channel.
+
+**Fully automatic:** not wired up, same two blockers as the ultra_power
+agent above (Kissht Snowflake MCP connector access, and externalbrowser SSO
+not being unattended-safe for Task Scheduler) — same fix (Snowflake
+key-pair auth) would unblock both agents at once.
+
+**Secrets:** `run_bounce_daily_agent.py` has the Slack incoming-webhook URL
+for `#bajaj_prefr_bounce` hardcoded in it, same reasoning as
+`run_daily_agent.py` above (this repo is public) — never commit it. If you
+need to recreate it: [api.slack.com/apps](https://api.slack.com/apps) →
+Incoming Webhooks → Add New Webhook to Workspace → pick `#bajaj_prefr_bounce`.
+
+Run the whole SQL file daily against Snowflake, same pattern as the
+ultra_power agent above.
