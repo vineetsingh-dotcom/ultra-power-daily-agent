@@ -1,18 +1,95 @@
 # Ultra Power daily high-value-miss agent
 
-`daily_ultra_power_high_value_miss_agent.sql` is the Sicreva repeat-offer
-waterfall pipeline (`Scirevawf_21_26August.sql`, kept here unchanged for
-reference) with two changes:
+## What this answers
 
-1. `start_date` / `end_date` / `fat_start_date` resolve to **yesterday**
-   relative to run time, instead of a hardcoded historical range.
-2. A **Step 6** appended at the end: among yesterday's applications where
-   `aa_income > 40000 AND bureau_cibil_3_score > 760 AND user_gross_monthly_salary > 45000`,
-   finds everyone `ultra_power_waterfall_scrupg` did NOT tag `'Approved'`,
-   logs them (with the exact first-failing-rule reason) to
-   `kissht_reports.temp_tables.daily_hv_ultra_power_miss_log` keyed by
-   `run_date` (safe to re-run — same-day rows are replaced), and produces a
-   summary result set of counts by reason.
+Every day, among **repeat-loan applications** where the customer looks clearly
+credit-worthy on paper —
 
-Run the whole file daily against Snowflake. The final `SELECT` (the
-"Slack-ready summary") is what a daily routine should read and post.
+```
+aa_income > 40000  OR  bureau_cibil_3_score > 760  OR  user_gross_monthly_salary > 45000
+```
+
+— how many were **not** tagged `'Approved'` by `ultra_power_waterfall_scrupg`,
+and exactly why. It exists to catch two kinds of mistakes: the policy
+behaving unexpectedly on obviously-good customers, or an upstream feed/join
+silently breaking (see "Bugs this already caught" below — it found a real one
+on day one).
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `Scirevawf_21_26August.sql` | The original Sicreva repeat-offer waterfall pipeline (Ring platform), kept unmodified for reference. |
+| `daily_ultra_power_high_value_miss_agent.sql` | The same pipeline, parameterized to always run for **yesterday**, with two extra steps appended (see below). This is the file that actually runs daily. |
+| `run_daily_agent.py` | **Not committed to this repo** (it's gitignored — see Secrets below). Runs the SQL file against Snowflake and posts the results to Slack. |
+| `run_report.bat` | Double-click to trigger `run_daily_agent.py` manually. |
+| Desktop shortcut "Run Ultra Power Report" | Same as the batch file, one click from the Desktop. |
+
+## What changed vs. the original pipeline
+
+1. **`start_date` / `end_date` / `fat_start_date`** resolve to yesterday
+   relative to run time (`DATEADD(day, -1, CURRENT_DATE())`), instead of a
+   hardcoded historical range.
+2. **Step 6** (appended at the end): finds every yesterday application
+   matching the high-value condition above where `ultra_power_waterfall_scrupg`
+   did not say `'Approved'`, and logs each one — with the exact first-failing
+   reason — to `kissht_reports.temp_tables.daily_hv_ultra_power_miss_log`,
+   keyed by `run_date` (safe to re-run: same-day rows are replaced via
+   `DELETE` + `INSERT`, not accumulated). Produces a summary (customers
+   missed per reason, with median cibil/salary/aa_income) as its last
+   `SELECT` — this is what gets posted to Slack.
+3. **Step 7**: `ultra_power_waterfall_scrupg` only names the *first* of the
+   28 benchmark checks (dt-20 `ultra_power_scr_upg`) a customer failed. Step
+   7 adds two columns that instead count and name **every** failing check
+   (`ultra_power_scrupg_fail_count`, `ultra_power_scrupg_fail_reasons`), and
+   a view — `kissht_reports.temp_tables.daily_hv_ultra_power_failcount_view`
+   — grouping customers by how many reasons they failed on (1, 2, 3, 4+) and
+   by the exact combination of reasons, with median customer stats per
+   combination. Answers "how many customers failed for exactly N reasons,"
+   not just "what was the first reason."
+
+## Running it
+
+**Manual (today):** double-click `run_report.bat` or the "Run Ultra Power
+Report" desktop shortcut. A console window shows progress; a browser tab may
+briefly open for Snowflake SSO (usually auto-completes from a cached
+session — click through it if it doesn't). Takes a few minutes (it rebuilds
+the full pipeline over real Snowflake tables). Posts two messages to
+`#ultra_power_src_upg`: the main miss-reason summary, then the fail-count
+breakdown.
+
+**Fully automatic:** not yet wired up. Two blockers, either fixable:
+- The Claude cloud-routine path (`https://claude.ai/code/routines`) is built
+  but blocked — the Kissht Snowflake MCP connector rejects this account
+  ("Ask prashant.kumar@kissht.com to be added to the MCP permission list").
+- A local Windows Task Scheduler job is the fallback, but the script
+  authenticates via `authenticator='externalbrowser'` (SSO through Chrome),
+  which needs the machine on, you logged in, and a valid cached SSO session —
+  not fully unattended-safe. Switching to Snowflake key-pair auth would make
+  it so; ask if you want that set up.
+
+## Secrets
+
+`run_daily_agent.py` has the Slack incoming-webhook URL for
+`#ultra_power_src_upg` hardcoded in it. **This repo is public** (needed for
+the Claude cloud-routine integration), so that file is deliberately excluded
+via `.gitignore` and must never be committed — anyone with that URL can post
+into the channel. If you need to recreate it, generate a new one at
+[api.slack.com/apps](https://api.slack.com/apps) → Incoming Webhooks.
+
+## Bugs this already caught
+
+- **`aa_income` was always `NULL`** — the pipeline read it from source
+  record-type `finbox_variables`, which never carries that field (0%
+  populated). The real value lives under `offer_computation_variables`
+  (100% populated) — fixed in Step 2b. Before this fix, the high-value
+  filter was silently blind to the `aa_income > 40000` condition entirely.
+
+## Possible next steps
+
+- Feed `daily_hv_ultra_power_miss_log` / `daily_hv_ultra_power_failcount_view`
+  into a BI tool (Tableau/Power BI/Sigma) if one is already connected to this
+  Snowflake account, for trend charts across days instead of one-day-at-a-time
+  Slack messages.
+- Add an email digest alongside Slack.
+- Switch to Snowflake key-pair auth for true unattended scheduling.
