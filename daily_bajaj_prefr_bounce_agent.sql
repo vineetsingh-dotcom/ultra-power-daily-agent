@@ -1,16 +1,17 @@
 -- ============================================================
 -- Daily EMI-Bounce Trend Report — BAJAJ / PREFR / PREFR_PL
 -- Metric   : M1 (first EMI) T0 bounce (no payment-date tolerance)
--- Window   : trailing 10 completed EMI-due days (today excluded — not yet matured)
+-- Window   : trailing 10 completed EMI-due days, PLUS today shown separately
+--            as "not yet due" (today's EMIs haven't matured yet).
 -- Methodology reference: bounce_context.md §2 (bounce windows) and §1
 --   (Ring channel/cohort base pattern). Channel filter / FINAL_APPROVED
 --   base pattern reused from bajaj_prefr.sql.
--- Safe to re-run: the trailing window is deleted and re-inserted into the
--- permanent log table each run, so re-running the same day just refreshes it.
+-- Safe to re-run: the whole window (last 10 days + today) is deleted and
+-- re-inserted into the permanent log table each run.
 -- ============================================================
 
 SET window_start = DATEADD(day, -10, CURRENT_DATE);   -- 10 days ago
-SET window_end   = DATEADD(day, -1, CURRENT_DATE);     -- yesterday (today's EMIs aren't due/matured yet)
+SET window_end   = CURRENT_DATE;                       -- today, included as a "not yet due" row
 SET txn_start_date = DATEADD(day, -60, CURRENT_DATE);  -- wide enough that M1 (due ~30d post-disbursal) can fall in the window
 
 -- STEP 1: base cohort — approved loans on the 3 channels, wide enough to cover the window
@@ -30,7 +31,7 @@ WHERE t.status = 'FINAL_APPROVED'
   AND t.loan_reference_number IS NOT NULL
 ;
 
--- STEP 2: M1 repayment record per loan, EMI due date inside the trailing 10-day window
+-- STEP 2: M1 repayment record per loan, EMI due date inside the window (last 10 days + today)
 -- ============================================================
 CREATE OR REPLACE TABLE kissht_reports.temp_tables.tmp_bnc_m1 AS
 SELECT
@@ -40,7 +41,8 @@ SELECT
     r.scheduled_payment_date,
     r.payment_date,
     CASE
-        WHEN r.payment_date IS NOT NULL AND r.payment_date <= r.scheduled_payment_date THEN 1  -- paid on/before due date (T0)
+        WHEN DATE(r.scheduled_payment_date) >= CURRENT_DATE THEN -1                            -- not yet due (today or later)
+        WHEN r.payment_date IS NOT NULL AND r.payment_date <= r.scheduled_payment_date THEN 1   -- paid on/before due date (T0)
         ELSE 0                                                                                  -- bounced: unpaid or paid late
     END AS paid_t0
 FROM kissht_reports.temp_tables.tmp_bnc_base b
@@ -52,7 +54,7 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY b.loan_reference_number ORDER BY r.sched
 ;
 
 -- STEP 3: log loan-level detail into a permanent rolling table (history kept; only the
--- trailing window is refreshed each run, so re-runs on the same day don't duplicate rows)
+-- window is refreshed each run, so re-runs on the same day don't duplicate rows)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS kissht_reports.temp_tables.daily_bajaj_prefr_bounce_log (
     run_date               DATE,
@@ -75,15 +77,21 @@ SELECT
 FROM kissht_reports.temp_tables.tmp_bnc_m1
 ;
 
--- STEP 4: Slack-ready summary — one row per (emi_due_date, channel), last 10 days
+-- STEP 4: Slack-ready summary — one row per (emi_due_date, channel), last 10 days + today.
+-- bounce_rate_pct is NULL for the "not yet due" row (today) — the routine should render
+-- that row's rate as "not yet due" rather than a number.
 -- ============================================================
 SELECT
     emi_due_date,
     channel,
-    COUNT(*)                                                                    AS total_emis_due,
-    SUM(CASE WHEN paid_t0 = 1 THEN 1 ELSE 0 END)                                AS paid_on_time,
-    SUM(CASE WHEN paid_t0 = 0 THEN 1 ELSE 0 END)                                AS bounced_count,
-    ROUND(100.0 * SUM(CASE WHEN paid_t0 = 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS bounce_rate_pct
+    COUNT(*)                                                                                        AS total_emis_due,
+    SUM(CASE WHEN paid_t0 = 1 THEN 1 ELSE 0 END)                                                     AS paid_on_time,
+    SUM(CASE WHEN paid_t0 = 0 THEN 1 ELSE 0 END)                                                     AS bounced_count,
+    CASE
+        WHEN MAX(paid_t0) = -1 THEN NULL
+        ELSE ROUND(100.0 * SUM(CASE WHEN paid_t0 = 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2)
+    END                                                                                               AS bounce_rate_pct,
+    CASE WHEN MAX(paid_t0) = -1 THEN 'not_yet_due' ELSE 'matured' END                                 AS row_status
 FROM kissht_reports.temp_tables.tmp_bnc_m1
 GROUP BY emi_due_date, channel
 ORDER BY emi_due_date DESC, channel
